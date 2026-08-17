@@ -29,7 +29,7 @@ jobs:
 
       - name: Build APK
         working-directory: ./android
-        run: ./gradlew assembleRelease
+        run: bash ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -40,9 +40,13 @@ jobs:
       - name: Notify Telegram - Success
         if: success()
         run: |
-          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"             -H "Content-Type: application/json"             -d "{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"✅ Build APK Android berhasil! Download di GitHub Actions artifacts."}"
+          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"✅ Build APK Android berhasil! Download di GitHub Actions artifacts."}'
 
       - name: Notify Telegram - Failure
         if: failure()
         run: |
-          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"             -H "Content-Type: application/json"             -d "{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"❌ Build APK Android gagal. Cek log di GitHub Actions."}"
+          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"❌ Build APK Android gagal. Cek log di GitHub Actions."}'
