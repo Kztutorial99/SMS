@@ -19,36 +19,34 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 /**
- * Launcher activity. TANPA UI / splash / checklist.
+ * Permission gatekeeper.
  *
- * Flow:
- *  1. onCreate/onResume → evaluate().
- *  2. Kalau semua izin lengkap → langsung ke MainActivity.
- *  3. Kalau ada runtime permission yang belum → auto-launch dialog sistem.
- *  4. Kalau tinggal special-settings (Exact alarm / Notification Listener) →
- *     auto-launch halaman Settings terkait satu per satu.
- *  5. Kalau user tolak permanen → arahkan ke App Info.
- *
- * Tidak ada tombol "Lanjut". Tidak ada layar perantara.
+ * Runtime permissions are requested with the Android permission dialog.
+ * Special permissions use their dedicated Android Settings pages.
+ * App Info is only used as a last-resort fallback when Android has made a
+ * runtime permission permanently non-requestable.
  */
 class PermissionActivity : AppCompatActivity() {
 
-    private var runtimeAsked = false
-    private var exactAlarmAsked = false
-    private var notifListenerAsked = false
+    private var runtimeRequestInFlight = false
+    private var exactAlarmRequestInFlight = false
+    private var notifListenerRequestInFlight = false
 
     private val runtimeLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
-        val denied = result.filterValues { !it }.keys
-        if (denied.isNotEmpty()) {
-            val permanentlyDenied = denied.any {
-                !ActivityCompat.shouldShowRequestPermissionRationale(this, it)
+        runtimeRequestInFlight = false
+        // Always re-evaluate the real permission state. Do not redirect to
+        // App Info merely because one request was denied.
+        if (result.values.any { !it }) {
+            val permanentlyDenied = result.keys.any { permission ->
+                ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED &&
+                    !ActivityCompat.shouldShowRequestPermissionRationale(this, permission)
             }
             if (permanentlyDenied) {
                 Toast.makeText(
                     this,
-                    "Izin ditolak permanen. Aktifkan manual di Pengaturan aplikasi.",
+                    "Izin ditolak permanen. Silakan aktifkan izin yang diperlukan di Pengaturan.",
                     Toast.LENGTH_LONG
                 ).show()
                 openAppSettings()
@@ -60,13 +58,16 @@ class PermissionActivity : AppCompatActivity() {
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { evaluate() }
+    ) {
+        exactAlarmRequestInFlight = false
+        notifListenerRequestInFlight = false
+        evaluate()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.BLACK
-        // Sengaja TIDAK setContentView — activity ini hanya gatekeeper permission.
         evaluate()
     }
 
@@ -76,66 +77,66 @@ class PermissionActivity : AppCompatActivity() {
     }
 
     private fun evaluate() {
-        // 1. Runtime permissions dulu.
+        if (isFinishing || isDestroyed) return
+
+        // 1. Runtime permissions: Android shows the native permission dialog.
         val missingRuntime = missingRuntimePerms()
         if (missingRuntime.isNotEmpty()) {
-            if (!runtimeAsked) {
-                runtimeAsked = true
-                runtimeLauncher.launch(missingRuntime.toTypedArray())
-            } else {
-                // Sudah diminta tapi masih ditolak → arahkan ke App Settings.
-                Toast.makeText(
-                    this,
-                    "Semua izin runtime harus diberikan.",
-                    Toast.LENGTH_LONG
-                ).show()
-                openAppSettings()
+            if (!runtimeRequestInFlight) {
+                val permanentlyDenied = missingRuntime.any { permission ->
+                    !ActivityCompat.shouldShowRequestPermissionRationale(this, permission) &&
+                        hasRequestedBefore(permission)
+                }
+
+                if (permanentlyDenied) {
+                    Toast.makeText(
+                        this,
+                        "Izin ini sudah ditolak permanen. Buka Pengaturan untuk mengaktifkannya.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    openAppSettings()
+                } else {
+                    runtimeRequestInFlight = true
+                    markRequested(missingRuntime)
+                    runtimeLauncher.launch(missingRuntime.toTypedArray())
+                }
             }
             return
         }
 
-        // 2. Exact alarm (Android 12+).
+        // 2. Exact alarm is a special access and cannot be requested with
+        // requestPermissions(). Use Android's dedicated page, not App Info.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms()) {
-            if (!exactAlarmAsked) {
-                exactAlarmAsked = true
+            if (!exactAlarmRequestInFlight) {
+                exactAlarmRequestInFlight = true
                 try {
                     val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                         data = Uri.parse("package:$packageName")
                     }
                     settingsLauncher.launch(intent)
                 } catch (_: Exception) {
+                    exactAlarmRequestInFlight = false
                     openAppSettings()
                 }
-            } else {
-                Toast.makeText(
-                    this,
-                    "Aktifkan 'Alarm presisi' untuk aplikasi ini.",
-                    Toast.LENGTH_LONG
-                ).show()
             }
             return
         }
 
-        // 3. Notification listener.
+        // 3. Notification Listener is another special access. Android does
+        // not provide a normal runtime popup for it.
         if (!isNotificationListenerEnabled()) {
-            if (!notifListenerAsked) {
-                notifListenerAsked = true
+            if (!notifListenerRequestInFlight) {
+                notifListenerRequestInFlight = true
                 try {
                     settingsLauncher.launch(Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 } catch (_: Exception) {
+                    notifListenerRequestInFlight = false
                     openAppSettings()
                 }
-            } else {
-                Toast.makeText(
-                    this,
-                    "Aktifkan akses notifikasi untuk aplikasi ini.",
-                    Toast.LENGTH_LONG
-                ).show()
             }
             return
         }
 
-        // Semua lengkap.
         openMain()
     }
 
@@ -176,6 +177,15 @@ class PermissionActivity : AppCompatActivity() {
         }
     }
 
+    private fun hasRequestedBefore(permission: String): Boolean =
+        getPreferences(Context.MODE_PRIVATE).getBoolean("requested_$permission", false)
+
+    private fun markRequested(permissions: List<String>) {
+        getPreferences(Context.MODE_PRIVATE).edit().apply {
+            permissions.forEach { putBoolean("requested_$it", true) }
+        }.apply()
+    }
+
     private fun openAppSettings() {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -183,7 +193,7 @@ class PermissionActivity : AppCompatActivity() {
             }
             settingsLauncher.launch(intent)
         } catch (_: Exception) {
-            // ignore
+            // No further fallback is available on this device.
         }
     }
 
