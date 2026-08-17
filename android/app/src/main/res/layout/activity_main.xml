@@ -6,11 +6,26 @@
     android:orientation="vertical"
     android:padding="24dp">
 
+    <TextView
+        android:id="@+id/txtDevice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:gravity="center"
+        android:textSize="14sp" />
+
     <Button
         android:id="@+id/btnPermission"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Grant Notification Access" />
+
+    <Button
+        android:id="@+id/btnPhonePermission"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Grant Phone / SIM Access" />
 
     <Button
         android:id="@+id/btnTest"
