@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#FF0A0E1A</color>
-    <color name="bg_card">#FF141A2E</color>
-    <color name="accent">#FF7DD3FC</color>
-    <color name="accent_dim">#FF334155</color>
-    <color name="text_primary">#FFF1F5F9</color>
-    <color name="text_secondary">#FF94A3B8</color>
+    <color name="bg">#FF000000</color>
+    <color name="bg_card">#FF1F1F1F</color>
+    <color name="accent">#FF6E9AEF</color>
+    <color name="accent_dim">#FF3F5685</color>
+    <color name="text_primary">#FFF5F5F5</color>
+    <color name="text_secondary">#FF777777</color>
 </resources>
