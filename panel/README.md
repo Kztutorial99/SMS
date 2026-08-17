@@ -10,7 +10,7 @@ Next.js App Router panel for the SMS Android app. Deploy this `panel/` directory
 - `SESSION_SECRET` — long random secret used to sign the admin session
 - `DEVICE_API_TOKEN` — shared secret used by the Android APK to authenticate device events
 
-The Vercel Marketplace supports Upstash Redis and can inject its credentials into the project. citeturn2search0turn2search10
+Use the Vercel Marketplace Upstash Redis integration to provision Redis and inject its credentials into the project.
 
 ## Android build secrets
 
