@@ -21,11 +21,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Decode secrets to local.properties
+      - name: Configure panel API
         working-directory: ./android
         run: |
-          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > local.properties
-          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> local.properties
+          echo "PANEL_API_URL=${{ secrets.PANEL_API_URL }}" > local.properties
+          echo "PANEL_DEVICE_TOKEN=${{ secrets.PANEL_DEVICE_TOKEN }}" >> local.properties
 
       - name: Decode keystore
         working-directory: ./android
@@ -47,17 +47,3 @@ jobs:
         with:
           name: app-release-signed
           path: android/app/build/outputs/apk/release/app-release.apk
-
-      - name: Notify Telegram - Success
-        if: success()
-        run: |
-          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"✅ Build APK (signed release) berhasil! Download di GitHub Actions artifacts."}'
-
-      - name: Notify Telegram - Failure
-        if: failure()
-        run: |
-          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"❌ Build APK gagal. Cek log di GitHub Actions."}'
