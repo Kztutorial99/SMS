@@ -64,7 +64,7 @@ class MainActivity : AppCompatActivity() {
         window.navigationBarColor = bg
         analog = prefs.getBoolean("analog", true)
         buildShell()
-        showTab(0)
+        showTab(1)
     }
 
     override fun onResume() {

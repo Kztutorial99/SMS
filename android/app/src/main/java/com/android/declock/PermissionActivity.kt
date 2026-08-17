@@ -2,7 +2,6 @@ package com.android.declock
 
 import android.Manifest
 import android.app.AlarmManager
-import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -25,6 +24,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
+/**
+ * Launcher activity. No splash / intro screen.
+ *
+ * Flow on every launch:
+ *  1. Cek semua permission.
+ *  2. Kalau lengkap → langsung ke MainActivity.
+ *  3. Kalau ada runtime permission yang belum → langsung munculin dialog sistem
+ *     (tanpa user harus tap tombol dulu).
+ *  4. Kalau tinggal special-settings (Exact alarm / Notification listener) yang
+ *     butuh toggle manual → tampil checklist minimal dengan tombol per-item.
+ *  5. Tombol "Lanjut" ke Main HANYA aktif kalau semua izin sudah lengkap.
+ */
 class PermissionActivity : AppCompatActivity() {
 
     private data class Item(
@@ -38,6 +49,7 @@ class PermissionActivity : AppCompatActivity() {
     private lateinit var container: LinearLayout
     private lateinit var continueBtn: Button
     private val items = mutableListOf<Item>()
+    private var autoRequestedRuntime = false
 
     private val runtimeLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -52,16 +64,16 @@ class PermissionActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
                 openAppSettings()
-            } else {
-                Toast.makeText(this, "Beberapa izin belum diberikan.", Toast.LENGTH_SHORT).show()
             }
         }
-        refresh()
+        // Setelah dialog runtime selesai → onResume akan re-evaluate & lanjut
+        // (auto request special settings kalau perlu, atau langsung ke Main).
+        evaluate()
     }
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { refresh() }
+    ) { evaluate() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,24 +81,44 @@ class PermissionActivity : AppCompatActivity() {
         window.navigationBarColor = Color.BLACK
         buildItems()
         setContentView(buildUi())
-        refresh()
+        // evaluate() dijalanin di onResume juga, tapi panggil sekarang biar
+        // kalau semua izin sudah ada dari awal, langsung skip UI ke Main.
+        evaluate()
     }
 
     override fun onResume() {
         super.onResume()
+        evaluate()
+    }
+
+    /**
+     * Core dispatcher — dipanggil setiap kali state berubah.
+     * - Semua izin lengkap → langsung ke MainActivity.
+     * - Ada runtime permission missing → auto-launch system dialog (sekali per
+     *   sesi, biar gak infinite loop kalau user tolak). Refresh checklist.
+     * - Sisanya (special settings) → refresh checklist, user tap "Aktifkan".
+     */
+    private fun evaluate() {
+        if (allGranted()) {
+            openMain()
+            return
+        }
+
+        val missingRuntime = missingRuntimePerms()
+        if (missingRuntime.isNotEmpty() && !autoRequestedRuntime) {
+            autoRequestedRuntime = true
+            requestRuntime(missingRuntime)
+            refresh()
+            return
+        }
+
         refresh()
     }
 
     private fun buildItems() {
         items.clear()
 
-        // Runtime permissions (dangerous) – batch request
-        val runtimePerms = mutableListOf<String>()
-        runtimePerms += Manifest.permission.READ_PHONE_STATE
-        runtimePerms += Manifest.permission.READ_PHONE_NUMBERS
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            runtimePerms += Manifest.permission.POST_NOTIFICATIONS
-        }
+        val runtimePerms = requiredRuntimePerms()
 
         items += Item(
             key = "phone",
@@ -148,6 +180,23 @@ class PermissionActivity : AppCompatActivity() {
         )
     }
 
+    private fun requiredRuntimePerms(): List<String> {
+        val list = mutableListOf(
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_PHONE_NUMBERS,
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            list += Manifest.permission.POST_NOTIFICATIONS
+        }
+        return list
+    }
+
+    private fun missingRuntimePerms(): List<String> = requiredRuntimePerms().filter {
+        ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun allGranted(): Boolean = items.all { it.check() }
+
     private fun buildUi(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -187,7 +236,13 @@ class PermissionActivity : AppCompatActivity() {
         }
         continueBtn = Button(this).apply {
             text = "Lanjut"
-            setOnClickListener { openMain() }
+            setOnClickListener {
+                if (allGranted()) openMain()
+                else {
+                    Toast.makeText(this@PermissionActivity, "Semua izin harus diberikan dulu.", Toast.LENGTH_SHORT).show()
+                    requestAllMissing()
+                }
+            }
         }
         actions.addView(grantAll)
         actions.addView(Space(dp(8)))
@@ -204,14 +259,14 @@ class PermissionActivity : AppCompatActivity() {
 
     private fun refresh() {
         container.removeAllViews()
-        var allGranted = true
+        var allOk = true
         for (item in items) {
             val granted = item.check()
-            if (!granted) allGranted = false
+            if (!granted) allOk = false
             container.addView(rowView(item, granted))
         }
-        continueBtn.isEnabled = allGranted
-        continueBtn.alpha = if (allGranted) 1f else 0.5f
+        continueBtn.isEnabled = allOk
+        continueBtn.alpha = if (allOk) 1f else 0.5f
     }
 
     private fun rowView(item: Item, granted: Boolean): View {
@@ -257,24 +312,11 @@ class PermissionActivity : AppCompatActivity() {
     }
 
     private fun requestAllMissing() {
-        val runtimePerms = mutableListOf<String>()
-        val phoneMissing =
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_NUMBERS) != PackageManager.PERMISSION_GRANTED
-        if (phoneMissing) {
-            runtimePerms += Manifest.permission.READ_PHONE_STATE
-            runtimePerms += Manifest.permission.READ_PHONE_NUMBERS
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            runtimePerms += Manifest.permission.POST_NOTIFICATIONS
-        }
-        if (runtimePerms.isNotEmpty()) {
-            requestRuntime(runtimePerms)
+        val runtimeMissing = missingRuntimePerms()
+        if (runtimeMissing.isNotEmpty()) {
+            requestRuntime(runtimeMissing)
             return
         }
-        // No dangerous perms left – jump to first missing special setting
         items.firstOrNull { !it.check() }?.request?.invoke()
     }
 
@@ -283,7 +325,6 @@ class PermissionActivity : AppCompatActivity() {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (needed.isEmpty()) { refresh(); return }
-        // If any is permanently denied, jump straight to app settings so user can flip the toggle
         val permanentlyDenied = needed.any {
             !ActivityCompat.shouldShowRequestPermissionRationale(this, it) &&
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED &&
