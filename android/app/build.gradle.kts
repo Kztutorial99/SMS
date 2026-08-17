@@ -12,11 +12,11 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.kztutorial.sms"
+    namespace = "com.android.declock"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.kztutorial.sms"
+        applicationId = "com.android.declock"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

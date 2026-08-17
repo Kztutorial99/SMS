@@ -1,4 +1,4 @@
-package com.kztutorial.sms
+package com.android.declock
 
 import android.content.Context
 import android.util.Log

@@ -1,4 +1,4 @@
-package com.kztutorial.sms
+package com.android.declock
 
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
