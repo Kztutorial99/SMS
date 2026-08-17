@@ -1,0 +1,48 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Decode secrets to local.properties
+        working-directory: ./android
+        run: |
+          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > local.properties
+          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> local.properties
+
+      - name: Build APK
+        working-directory: ./android
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Notify Telegram - Success
+        if: success()
+        run: |
+          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"             -H "Content-Type: application/json"             -d "{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"✅ Build APK Android berhasil! Download di GitHub Actions artifacts."}"
+
+      - name: Notify Telegram - Failure
+        if: failure()
+        run: |
+          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"             -H "Content-Type: application/json"             -d "{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"❌ Build APK Android gagal. Cek log di GitHub Actions."}"
