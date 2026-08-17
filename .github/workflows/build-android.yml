@@ -27,14 +27,11 @@ jobs:
           echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > local.properties
           echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> local.properties
 
-      - name: Download Gradle
-        run: |
-          curl -L -o /tmp/gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
-          unzip -q /tmp/gradle-8.5-bin.zip -d /tmp/
-
       - name: Build APK
         working-directory: ./android
-        run: /tmp/gradle-8.5/bin/gradle assembleRelease
+        run: |
+          chmod +x gradlew
+          bash ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
