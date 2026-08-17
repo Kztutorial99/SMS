@@ -7,5 +7,6 @@ export async function POST(req: NextRequest) {
   if (!b?.deviceId) return NextResponse.json({ error: 'deviceId required' }, { status: 400 })
   const device: Device = { id: String(b.deviceId), label: String(b.deviceLabel || b.deviceId), android: String(b.android || ''), sims: String(b.sims || ''), online: true, lastSeen: Date.now() }
   await redis.set(deviceKey(device.id), device)
+  await redis.sadd('sms:devices', device.id)
   return NextResponse.json({ ok: true })
 }
