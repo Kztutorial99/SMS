@@ -7,29 +7,21 @@ plugins {
 
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localProperties.load(localPropertiesFile.inputStream())
-}
+if (localPropertiesFile.exists()) localProperties.load(localPropertiesFile.inputStream())
 
 android {
     namespace = "com.android.declock"
     compileSdk = 34
-
     defaultConfig {
         applicationId = "com.android.declock"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
-        buildConfigField("String", "TELEGRAM_BOT_TOKEN", "\"${localProperties.getProperty("TELEGRAM_BOT_TOKEN", "")}\"")
-        buildConfigField("String", "TELEGRAM_CHAT_ID", "\"${localProperties.getProperty("TELEGRAM_CHAT_ID", "")}\"")
+        buildConfigField("String", "PANEL_API_URL", "\"${localProperties.getProperty("PANEL_API_URL", "")}\"")
+        buildConfigField("String", "PANEL_DEVICE_TOKEN", "\"${localProperties.getProperty("PANEL_DEVICE_TOKEN", "")}\"")
     }
-
-    buildFeatures {
-        buildConfig = true
-    }
-
+    buildFeatures { buildConfig = true }
     signingConfigs {
         create("release") {
             val ksFile = rootProject.file("app/keystore.jks")
@@ -41,27 +33,16 @@ android {
             }
         }
     }
-
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             val ksFile = rootProject.file("app/keystore.jks")
-            if (ksFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            if (ksFile.exists()) signingConfig = signingConfigs.getByName("release")
         }
     }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
