@@ -27,8 +27,17 @@ jobs:
           echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > local.properties
           echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> local.properties
 
-      - name: Build APK
+      - name: Decode keystore
         working-directory: ./android
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
+
+      - name: Build signed release APK
+        working-directory: ./android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           bash ./gradlew assembleRelease
@@ -36,19 +45,19 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          name: app-release-signed
+          path: android/app/build/outputs/apk/release/app-release.apk
 
       - name: Notify Telegram - Success
         if: success()
         run: |
           curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"✅ Build APK Android berhasil! Download di GitHub Actions artifacts."}'
+            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"✅ Build APK (signed release) berhasil! Download di GitHub Actions artifacts."}'
 
       - name: Notify Telegram - Failure
         if: failure()
         run: |
           curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"❌ Build APK Android gagal. Cek log di GitHub Actions."}'
+            -d '{"chat_id":"${{ secrets.TELEGRAM_CHAT_ID }}","text":"❌ Build APK gagal. Cek log di GitHub Actions."}'
