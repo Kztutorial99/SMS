@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
-import android.service.notification.NotificationListenerService
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
@@ -54,12 +53,10 @@ class PermissionActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == notificationPermissionRequest) {
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                continuePermissionFlow()
-            } else {
+            if (grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Izin notifikasi ditolak. Akses notifikasi tetap diperlukan untuk fitur Telegram.", Toast.LENGTH_LONG).show()
-                continuePermissionFlow()
             }
+            continuePermissionFlow()
         }
     }
 
@@ -70,8 +67,9 @@ class PermissionActivity : Activity() {
                 val manager = getSystemService(android.app.NotificationManager::class.java)
                 manager.isNotificationListenerAccessGranted(component)
             } else {
-                android.service.notification.NotificationListenerService.getEnabledListenerPackages(this)
-                    .contains(packageName)
+                Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+                    ?.split(":")
+                    ?.any { it.equals(component.flattenToString(), ignoreCase = true) } == true
             }
         } catch (_: Exception) {
             false
